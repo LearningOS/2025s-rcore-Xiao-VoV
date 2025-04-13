@@ -63,7 +63,8 @@ impl MemorySet {
             None,
         );
     }
-    fn push(&mut self, mut map_area: MapArea, data: Option<&[u8]>) {
+    /// 插入一个新的逻辑段
+    pub fn push(&mut self, mut map_area: MapArea, data: Option<&[u8]>) {
         map_area.map(&mut self.page_table);
         if let Some(data) = data {
             map_area.copy_data(&mut self.page_table, data);
@@ -80,7 +81,7 @@ impl MemorySet {
     }
     /// Without kernel stacks.
     pub fn new_kernel() -> Self {
-        let mut memory_set = Self::new_bare();
+        let mut memory_set: MemorySet = Self::new_bare();
         // map trampoline
         memory_set.map_trampoline();
         // map kernel sections
@@ -361,7 +362,9 @@ impl MapArea {
 #[derive(Copy, Clone, PartialEq, Debug)]
 /// map type for memory set: identical or framed
 pub enum MapType {
+    /// 恒等映射
     Identical,
+    /// 分页
     Framed,
 }
 

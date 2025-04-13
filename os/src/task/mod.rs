@@ -15,6 +15,7 @@ mod switch;
 mod task;
 
 use crate::loader::{get_app_data, get_num_app};
+use crate::mm::MapPermission;
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
 use alloc::vec::Vec;
@@ -153,6 +154,14 @@ impl TaskManager {
             panic!("All applications completed!");
         }
     }
+    /// 映射一个新的逻辑段
+    pub fn map_new_area(&self, start: usize, len: usize, port: MapPermission) -> Option<usize> {
+        let current_task = self.inner.exclusive_access().current_task;
+        self.inner.exclusive_access().tasks[current_task]
+            .memory_set
+            .insert_framed_area((start).into(), (start + len).into(), port);
+        Some(0)
+    }
 }
 
 /// Run the first task in task list.
@@ -201,4 +210,8 @@ pub fn current_trap_cx() -> &'static mut TrapContext {
 /// Change the current 'Running' task's program break
 pub fn change_program_brk(size: i32) -> Option<usize> {
     TASK_MANAGER.change_current_program_brk(size)
+}
+/// 映射一个新的逻辑段
+pub fn map_new_area(start: usize, len: usize, port: MapPermission) -> Option<usize> {
+    TASK_MANAGER.map_new_area(start, len, port)
 }
