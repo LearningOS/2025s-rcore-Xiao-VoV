@@ -155,11 +155,20 @@ impl TaskManager {
         }
     }
     /// 映射一个新的逻辑段
-    pub fn map_new_area(&self, start: usize, len: usize, port: MapPermission) -> Option<usize> {
+    pub fn map_new_area(&self, start: usize, len: usize, port: MapPermission) -> Option<isize> {
         let current_task = self.inner.exclusive_access().current_task;
         self.inner.exclusive_access().tasks[current_task]
             .memory_set
             .insert_framed_area((start).into(), (start + len).into(), port);
+        Some(0)
+    }
+
+    /// 将一个逻辑段解除映射
+    pub fn unmap_area(&self, start: usize, len: usize) -> Option<isize> {
+        let current_task = self.inner.exclusive_access().current_task;
+        self.inner.exclusive_access().tasks[current_task]
+            .memory_set
+            .remove_framed_area((start).into(), (start + len).into());
         Some(0)
     }
 }
@@ -212,6 +221,11 @@ pub fn change_program_brk(size: i32) -> Option<usize> {
     TASK_MANAGER.change_current_program_brk(size)
 }
 /// 映射一个新的逻辑段
-pub fn map_new_area(start: usize, len: usize, port: MapPermission) -> Option<usize> {
+pub fn map_new_area(start: usize, len: usize, port: MapPermission) -> Option<isize> {
     TASK_MANAGER.map_new_area(start, len, port)
+}
+
+/// 将一个逻辑段解除映射
+pub fn unmap_area(start: usize, len: usize) -> Option<isize> {
+    TASK_MANAGER.unmap_area(start, len)
 }

@@ -63,6 +63,20 @@ impl MemorySet {
             None,
         );
     }
+    /// 解除映射
+    pub fn remove_framed_area(&mut self, start_va: VirtAddr, end_va: VirtAddr) {
+        self.areas.retain_mut(|area| {
+            if area.vpn_range.get_start() == start_va.floor()
+                && area.vpn_range.get_end() == end_va.ceil()
+            {
+                area.unmap(&mut self.page_table);
+                false
+            } else {
+                true
+            }
+        });
+    }
+
     /// 插入一个新的逻辑段
     pub fn push(&mut self, mut map_area: MapArea, data: Option<&[u8]>) {
         map_area.map(&mut self.page_table);

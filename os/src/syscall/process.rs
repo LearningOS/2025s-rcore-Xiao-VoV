@@ -2,8 +2,8 @@
 use crate::config::PAGE_SIZE;
 use crate::mm::{translated_byte_buffer, MapPermission};
 use crate::task::{
-    change_program_brk, current_user_token, exit_current_and_run_next,
-    suspend_current_and_run_next, TASK_MANAGER,
+    change_program_brk, current_user_token, exit_current_and_run_next, map_new_area,
+    suspend_current_and_run_next, unmap_area,
 };
 use crate::timer::get_time_us;
 use core::mem::size_of;
@@ -74,22 +74,22 @@ pub fn sys_trace(_trace_request: usize, _id: usize, _data: usize) -> isize {
 }
 
 // YOUR JOB: Implement mmap.
-pub fn sys_mmap(start: usize, _len: usize, port: usize) -> isize {
+pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
     trace!("kernel: sys_mmap NOT IMPLEMENTED YET!");
     if start % PAGE_SIZE != 0 || port & !0x7 != 0 || port & 0x7 == 0 {
         return -1;
     }
     let mut port = MapPermission::from_bits(port as u8).unwrap();
     port.insert(MapPermission::U);
-    TASK_MANAGER
-        .map_new_area(start, PAGE_SIZE, port)
-        .unwrap_or(1);
+    map_new_area(start, len, port).unwrap_or(-1);
     0
 }
 
 // YOUR JOB: Implement munmap.
-pub fn sys_munmap(_start: usize, _len: usize) -> isize {
+pub fn sys_munmap(start: usize, len: usize) -> isize {
     trace!("kernel: sys_munmap NOT IMPLEMENTED YET!");
+    unmap_area(start, len).unwrap_or(-1);
+    // TASK_MANAGER.map_new_area
     -1
 }
 /// change data segment size
