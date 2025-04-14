@@ -2,8 +2,8 @@
 use crate::config::PAGE_SIZE;
 use crate::mm::{translated_byte_buffer, MapPermission};
 use crate::task::{
-    change_program_brk, current_user_token, exit_current_and_run_next, map_new_area,
-    suspend_current_and_run_next, unmap_area,
+    change_program_brk, current_user_token, exit_current_and_run_next, get_systrace, map_new_area,
+    set_sys_trace, suspend_current_and_run_next, unmap_area,
 };
 use crate::timer::get_time_us;
 use core::mem::size_of;
@@ -68,9 +68,45 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
 
 /// TODO: Finish sys_trace to pass testcases
 /// HINT: You might reimplement it with virtual memory management.
-pub fn sys_trace(_trace_request: usize, _id: usize, _data: usize) -> isize {
+pub fn sys_trace(trace_request: usize, id: usize, data: usize) -> isize {
     trace!("kernel: sys_trace");
-    -1
+    match trace_request {
+        0 => {
+            // 读取当前任务 id 地址处一个字节的无符号整数值
+            let ptr = id as *const u8;
+            unsafe { ptr.read_volatile() as isize }
+        }
+        1 => {
+            // 写入 data 到该用户程序 id 地址处
+            // let ptr = id as *mut u8;
+            // let value = data as u8;
+            // unsafe { ptr.write_volatile(value) };
+            let data_bytes = unsafe {
+                core::slice::from_raw_parts(
+                    (&data as *const usize) as *const u8,
+                    size_of::<usize>(),
+                )
+            };
+            let token = current_user_token();
+            let data_ptr = id as *mut u8;
+            // 简单地按字节逐个拷贝，效率较低
+            let v = translated_byte_buffer(token, data_ptr, size_of::<TimeVal>());
+            let flat_dest_iter = v.into_iter().flatten();
+            for (dest_byte, src_byte) in flat_dest_iter.zip(data_bytes.iter()) {
+                *dest_byte = *src_byte;
+            }
+            0
+        }
+        2 => get_systrace(id),
+        _ => {
+            // 忽略其他参数，返回值为 -1
+            -1
+        }
+    }
+}
+
+pub fn sys_trace_set(id: usize) {
+    set_sys_trace(id);
 }
 
 // YOUR JOB: Implement mmap.
@@ -90,7 +126,7 @@ pub fn sys_munmap(start: usize, len: usize) -> isize {
     trace!("kernel: sys_munmap NOT IMPLEMENTED YET!");
     unmap_area(start, len).unwrap_or(-1);
     // TASK_MANAGER.map_new_area
-    -1
+    0
 }
 /// change data segment size
 pub fn sys_sbrk(size: i32) -> isize {

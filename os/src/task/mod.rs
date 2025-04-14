@@ -171,6 +171,17 @@ impl TaskManager {
             .remove_framed_area((start).into(), (start + len).into());
         Some(0)
     }
+
+    fn get_syscall_counter(&self, syscall_id_transformed: usize) -> isize {
+        let inner: core::cell::RefMut<'_, TaskManagerInner> = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].syscall_counter[syscall_id_transformed]
+    }
+    fn set_syscall_counter(&self, syscall_id_transformed: usize) {
+        let mut inner: core::cell::RefMut<'_, TaskManagerInner> = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].syscall_counter[syscall_id_transformed] += 1;
+    }
 }
 
 /// Run the first task in task list.
@@ -228,4 +239,37 @@ pub fn map_new_area(start: usize, len: usize, port: MapPermission) -> Option<isi
 /// 将一个逻辑段解除映射
 pub fn unmap_area(start: usize, len: usize) -> Option<isize> {
     TASK_MANAGER.unmap_area(start, len)
+}
+
+/// sys_trace
+pub fn get_systrace(id: usize) -> isize {
+    trace!("kernel: sys_yield");
+    let new_id = match id {
+        64 => 0,
+        93 => 1,
+        124 => 2,
+        169 => 3,
+        214 => 4,
+        215 => 5,
+        222 => 6,
+        410 => 7,
+        _ => 8,
+    };
+    TASK_MANAGER.get_syscall_counter(new_id)
+}
+
+/// sys_trace
+pub fn set_sys_trace(id: usize) {
+    let new_id = match id {
+        64 => 0,
+        93 => 1,
+        124 => 2,
+        169 => 3,
+        214 => 4,
+        215 => 5,
+        222 => 6,
+        410 => 7,
+        _ => 8,
+    };
+    TASK_MANAGER.set_syscall_counter(new_id);
 }
