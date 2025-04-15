@@ -1,0 +1,100 @@
+(rustup target list | grep "riscv64gc-unknown-none-elf (installed)") || rustup target add riscv64gc-unknown-none-elf
+riscv64gc-unknown-none-elf (installed)
+cargo install cargo-binutils
+rustup component add rust-src
+rustup component add llvm-tools-preview
+make[1]: 进入目录“/home/ubuntu/2025s-rcore-Xiao-VoV/user”
+target/riscv64gc-unknown-none-elf/release/ch3_sleep1 target/riscv64gc-unknown-none-elf/release/ch3_sleep target/riscv64gc-unknown-none-elf/release/ch3_trace target/riscv64gc-unknown-none-elf/release/ch4_mmap0 target/riscv64gc-unknown-none-elf/release/ch4_mmap1 target/riscv64gc-unknown-none-elf/release/ch4_mmap2 target/riscv64gc-unknown-none-elf/release/ch4_mmap3 target/riscv64gc-unknown-none-elf/release/ch4_trace1 target/riscv64gc-unknown-none-elf/release/ch4_unmap2 target/riscv64gc-unknown-none-elf/release/ch4_unmap
+make[1]: 离开目录“/home/ubuntu/2025s-rcore-Xiao-VoV/user”
+Platform: qemu
+[rustsbi] RustSBI version 0.3.0-alpha.2, adapting to RISC-V SBI v1.0.0
+.______       __    __      _______.___________.  _______..______   __
+|   _  \     |  |  |  |    /       |           | /       ||   _  \ |  |
+|  |_)  |    |  |  |  |   |   (----`---|  |----`|   (----`|  |_)  ||  |
+|      /     |  |  |  |    \   \       |  |      \   \    |   _  < |  |
+|  |\  \----.|  `--'  |.----)   |      |  |  .----)   |   |  |_)  ||  |
+| _| `._____| \______/ |_______/       |__|  |_______/    |______/ |__|
+[rustsbi] Implementation     : RustSBI-QEMU Version 0.2.0-alpha.2
+[rustsbi] Platform Name      : riscv-virtio,qemu
+[rustsbi] Platform SMP       : 1
+[rustsbi] Platform Memory    : 0x80000000..0x88000000
+[rustsbi] Boot HART          : 0
+[rustsbi] Device Tree Region : 0x87000000..0x87000ef2
+[rustsbi] Firmware Address   : 0x80000000
+[rustsbi] Supervisor Address : 0x80200000
+[rustsbi] pmp01: 0x00000000..0x80000000 (-wr)
+[rustsbi] pmp02: 0x80000000..0x80200000 (---)
+[rustsbi] pmp03: 0x80200000..0x88000000 (xwr)
+[rustsbi] pmp04: 0x88000000..0x00000000 (-wr)
+[kernel] Hello, world!
+[32m[DEBUG] [kernel] .rodata [0x8020e000, 0x80212000)[0m
+[34m[ INFO] [kernel] .data [0x80212000, 0x80247000)[0m
+[93m[ WARN] [kernel] boot_stack top=bottom=0x80257000, lower_bound=0x80247000[0m
+[31m[ERROR] [kernel] .bss [0x80257000, 0x82258000)[0m
+[34m[ INFO] .text [0x80200000, 0x8020e000)[0m
+[34m[ INFO] .rodata [0x8020e000, 0x80212000)[0m
+[34m[ INFO] .data [0x80212000, 0x80247000)[0m
+[34m[ INFO] .bss [0x80247000, 0x82258000)[0m
+[34m[ INFO] mapping .text section[0m
+[34m[ INFO] mapping .rodata section[0m
+[34m[ INFO] mapping .data section[0m
+[34m[ INFO] mapping .bss section[0m
+[34m[ INFO] mapping physical memory[0m
+[kernel] back to world!
+remap_test passed!
+init TASK_MANAGER
+num_app = 10
+get_time OK! 25
+current time_msec = 26
+[32m[DEBUG] sys_mmap start:268435456  len:4096 port:3[0m
+Test 04_1 OK!
+[32m[DEBUG] sys_mmap start:268435456  len:4096 port:1[0m
+[kernel] PageFault in application, bad addr = 0x10000000, bad instruction = 0x42e, kernel killed it.
+[32m[DEBUG] sys_mmap start:268435456  len:4096 port:2[0m
+[kernel] PageFault in application, bad addr = 0x10000000, bad instruction = 0x42c, kernel killed it.
+[32m[DEBUG] sys_mmap start:268435456  len:4096 port:3[0m
+[32m[DEBUG] sys_mmap start:268431360  len:4097 port:3[0m
+[32m[DEBUG] mmap: area already mapped: PPN:0x8235f[0m
+[32m[DEBUG] sys_mmap start:268439553  len:4096 port:3[0m
+[32m[DEBUG] sys_mmap start:268439552  len:4096 port:0[0m
+[32m[DEBUG] sys_mmap start:268439552  len:4096 port:11[0m
+Test 04_4 test OK!
+[32m[DEBUG] sys_get_trace 0[0m
+Panicked at src/bin/ch4_trace1.rs:12, assertion `left == right` failed
+[32m[DEBUG] sys_mmap start:268435456  len:4096 port:3[0m
+[32m[DEBUG] sys_mmap start:268439552  len:8192 port:3[0m
+[32m[DEBUG] sys_munmap[0m
+[32m[DEBUG] next_vpn = VPN:0x10000 , end_vpn = VPN:0x10001[0m
+[32m[DEBUG] next_vpn = VPN:0x10001 , end_vpn = VPN:0x10001[0m
+[32m[DEBUG] sys_mmap start:268431360  len:4097 port:3[0m
+Test 04_5 ummap OK!
+[32m[DEBUG] sys_mmap start:268435456  len:4096 port:3[0m
+[32m[DEBUG] sys_munmap[0m
+[32m[DEBUG] next_vpn = VPN:0x10000 , end_vpn = VPN:0x10002[0m
+[32m[DEBUG] next_vpn = VPN:0x10001 , end_vpn = VPN:0x10002[0m
+[32m[DEBUG] sys_munmap[0m
+[32m[DEBUG] next_vpn = VPN:0x10000 , end_vpn = VPN:0x10001[0m
+[32m[DEBUG] next_vpn = VPN:0x10001 , end_vpn = VPN:0x10001[0m
+Test 04_6 ummap2 OK!
+  left: Some(111)
+ right: Some(0)
+time_msec = 127 after sleeping 100 ticks, delta = 101ms!
+Test sleep1 passed!
+[32m[DEBUG] sys_get_trace 2[0m
+[32m[DEBUG] sys_get_trace 2[0m
+[32m[DEBUG] sys_get_trace 2[0m
+[32m[DEBUG] sys_get_trace 2[0m
+[32m[DEBUG] sys_get_trace 2[0m
+string from task trace test
+
+[32m[DEBUG] sys_get_trace 2[0m
+[32m[DEBUG] sys_get_trace 2[0m
+[32m[DEBUG] sys_get_trace 2[0m
+[32m[DEBUG] sys_get_trace 2[0m
+[32m[DEBUG] sys_get_trace 2[0m
+[32m[DEBUG] sys_get_trace 0[0m
+Panicked at src/bin/ch3_trace.rs:41, assertion `left == right` failed
+  left: Some(111)
+ right: Some(0)
+Test sleep OK!
+[kernel] Panicked at src/task/mod.rs:154 All applications completed!

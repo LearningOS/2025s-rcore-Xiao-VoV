@@ -15,7 +15,7 @@ mod switch;
 mod task;
 
 use crate::loader::{get_app_data, get_num_app};
-use crate::mm::MapPermission;
+use crate::mm::{MapPermission, VirtAddr};
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
 use alloc::vec::Vec;
@@ -155,20 +155,58 @@ impl TaskManager {
         }
     }
     /// 映射一个新的逻辑段
-    pub fn map_new_area(&self, start: usize, len: usize, port: MapPermission) -> Option<isize> {
+    pub fn map_new_area(
+        &self,
+        start: VirtAddr,
+        end: VirtAddr,
+        port: MapPermission,
+    ) -> Option<isize> {
         let current_task = self.inner.exclusive_access().current_task;
+
+        let mut next_vpn = start.floor();
+        let end_vpn = end.ceil();
+
+        while next_vpn < end_vpn {
+            if let Some(pte) = self.inner.exclusive_access().tasks[current_task]
+                .memory_set
+                .translate(next_vpn)
+            {
+                if pte.is_valid() {
+                    debug!("mmap: area already mapped: {:x?}", pte.ppn());
+                    return Some(-1);
+                }
+            }
+            next_vpn.0 += 1;
+        }
+
         self.inner.exclusive_access().tasks[current_task]
             .memory_set
-            .insert_framed_area((start).into(), (start + len).into(), port);
+            .insert_framed_area(start, end, port);
         Some(0)
     }
 
     /// 将一个逻辑段解除映射
-    pub fn unmap_area(&self, start: usize, len: usize) -> Option<isize> {
+    pub fn unmap_area(&self, start: VirtAddr, end: VirtAddr) -> Option<isize> {
         let current_task = self.inner.exclusive_access().current_task;
+
+        let mut next_vpn = start.floor();
+        let end_vpn = end.ceil();
+
+        while next_vpn < end_vpn {
+            debug!("next_vpn = {:x?} , end_vpn = {:x?}", next_vpn, end_vpn);
+            if let Some(pte) = self.inner.exclusive_access().tasks[current_task]
+                .memory_set
+                .translate(next_vpn)
+            {
+                if !pte.is_valid() {
+                    return Some(-1);
+                }
+            }
+            next_vpn.0 += 1;
+        }
         self.inner.exclusive_access().tasks[current_task]
             .memory_set
-            .remove_framed_area((start).into(), (start + len).into());
+            .remove_framed_area(start, end);
         Some(0)
     }
 
@@ -177,10 +215,10 @@ impl TaskManager {
         let current = inner.current_task;
         inner.tasks[current].syscall_counter[syscall_id_transformed]
     }
-    fn set_syscall_counter(&self, syscall_id_transformed: usize) {
+    fn set_syscall_counter(&self, syscall_id: usize) {
         let mut inner: core::cell::RefMut<'_, TaskManagerInner> = self.inner.exclusive_access();
         let current = inner.current_task;
-        inner.tasks[current].syscall_counter[syscall_id_transformed] += 1;
+        inner.tasks[current].syscall_counter[syscall_id] += 1;
     }
 }
 
@@ -233,43 +271,21 @@ pub fn change_program_brk(size: i32) -> Option<usize> {
 }
 /// 映射一个新的逻辑段
 pub fn map_new_area(start: usize, len: usize, port: MapPermission) -> Option<isize> {
-    TASK_MANAGER.map_new_area(start, len, port)
+    TASK_MANAGER.map_new_area(start.into(), (start + len).into(), port)
 }
 
 /// 将一个逻辑段解除映射
 pub fn unmap_area(start: usize, len: usize) -> Option<isize> {
-    TASK_MANAGER.unmap_area(start, len)
+    TASK_MANAGER.unmap_area(start.into(), (start + len).into())
 }
 
 /// sys_trace
 pub fn get_systrace(id: usize) -> isize {
     trace!("kernel: sys_yield");
-    let new_id = match id {
-        64 => 0,
-        93 => 1,
-        124 => 2,
-        169 => 3,
-        214 => 4,
-        215 => 5,
-        222 => 6,
-        410 => 7,
-        _ => 8,
-    };
-    TASK_MANAGER.get_syscall_counter(new_id)
+    TASK_MANAGER.get_syscall_counter(id)
 }
 
 /// sys_trace
 pub fn set_sys_trace(id: usize) {
-    let new_id = match id {
-        64 => 0,
-        93 => 1,
-        124 => 2,
-        169 => 3,
-        214 => 4,
-        215 => 5,
-        222 => 6,
-        410 => 7,
-        _ => 8,
-    };
-    TASK_MANAGER.set_syscall_counter(new_id);
+    TASK_MANAGER.set_syscall_counter(id);
 }
