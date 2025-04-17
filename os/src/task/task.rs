@@ -36,6 +36,8 @@ impl TaskControlBlock {
     }
 }
 
+const BIG_STRIDE: usize = 1 << 20;
+
 pub struct TaskControlBlockInner {
     /// The physical page number of the frame where the trap context is placed
     pub trap_cx_ppn: PhysPageNum,
@@ -68,6 +70,11 @@ pub struct TaskControlBlockInner {
 
     /// Program break
     pub program_brk: usize,
+
+    /// stride
+    pub stride: usize,
+    /// priority
+    pub priority: usize,
 }
 
 impl TaskControlBlockInner {
@@ -84,6 +91,12 @@ impl TaskControlBlockInner {
     }
     pub fn is_zombie(&self) -> bool {
         self.get_status() == TaskStatus::Zombie
+    }
+
+    pub fn update_stride(&mut self) {
+        if self.priority > 0 {
+            self.stride = self.stride.saturating_add(BIG_STRIDE / self.priority);
+        }
     }
 }
 
@@ -118,6 +131,8 @@ impl TaskControlBlock {
                     exit_code: 0,
                     heap_bottom: user_sp,
                     program_brk: user_sp,
+                    stride: 0,
+                    priority: 16,
                 })
             },
         };
@@ -191,6 +206,8 @@ impl TaskControlBlock {
                     exit_code: 0,
                     heap_bottom: parent_inner.heap_bottom,
                     program_brk: parent_inner.program_brk,
+                    stride: 0,
+                    priority: 16,
                 })
             },
         });
@@ -233,6 +250,8 @@ impl TaskControlBlock {
                     exit_code: 0,
                     heap_bottom: user_sp,
                     program_brk: user_sp,
+                    stride: 0,
+                    priority: 16,
                 })
             },
         });
