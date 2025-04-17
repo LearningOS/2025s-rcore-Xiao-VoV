@@ -2,7 +2,7 @@
 use super::TaskContext;
 use super::{kstack_alloc, pid_alloc, KernelStack, PidHandle};
 use crate::config::TRAP_CONTEXT_BASE;
-use crate::mm::{MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
+use crate::mm::{MapPermission, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
 use crate::sync::UPSafeCell;
 use crate::trap::{trap_handler, TrapContext};
 use alloc::sync::{Arc, Weak};
@@ -300,6 +300,52 @@ impl TaskControlBlock {
         } else {
             None
         }
+    }
+
+    /// map new area
+    pub fn map_new_area(
+        &self,
+        start: VirtAddr,
+        end: VirtAddr,
+        port: MapPermission,
+    ) -> Option<isize> {
+        let mut next_vpn = start.floor();
+        let end_vpn = end.ceil();
+
+        while next_vpn < end_vpn {
+            if let Some(pte) = self.inner_exclusive_access().memory_set.translate(next_vpn) {
+                if pte.is_valid() {
+                    debug!("mmap: area already mapped: {:x?}", pte.ppn());
+                    return Some(-1);
+                }
+            }
+            next_vpn.0 += 1;
+        }
+
+        self.inner_exclusive_access()
+            .memory_set
+            .insert_framed_area(start, end, port);
+        Some(0)
+    }
+
+    /// 将一个逻辑段解除映射
+    pub fn unmap_area(&self, start: VirtAddr, end: VirtAddr) -> Option<isize> {
+        let mut next_vpn = start.floor();
+        let end_vpn = end.ceil();
+
+        while next_vpn < end_vpn {
+            debug!("next_vpn = {:x?} , end_vpn = {:x?}", next_vpn, end_vpn);
+            if let Some(pte) = self.inner_exclusive_access().memory_set.translate(next_vpn) {
+                if !pte.is_valid() {
+                    return Some(-1);
+                }
+            }
+            next_vpn.0 += 1;
+        }
+        self.inner_exclusive_access()
+            .memory_set
+            .remove_framed_area(start, end);
+        Some(0)
     }
 }
 

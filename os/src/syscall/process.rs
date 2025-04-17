@@ -4,8 +4,9 @@ use core::mem::size_of;
 use alloc::sync::Arc;
 
 use crate::{
+    config::PAGE_SIZE,
     loader::get_app_data_by_name,
-    mm::{translated_byte_buffer, translated_refmut, translated_str},
+    mm::{translated_byte_buffer, translated_refmut, translated_str, MapPermission},
     task::{
         add_task, current_task, current_user_token, exit_current_and_run_next,
         suspend_current_and_run_next,
@@ -145,12 +146,30 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
 }
 
 /// YOUR JOB: Implement mmap.
-pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_mmap NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
-    -1
+pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
+    // trace!(
+    //   "kernel:pid[{}] sys_mmap NOT IMPLEMENTED",
+    //     current_task().unwrap().pid.0
+    // );
+    // -1
+    debug!("sys_mmap start:{}  len:{} port:{}", start, len, port);
+    if start % PAGE_SIZE != 0 || port & !0x7 != 0 || port & 0x7 == 0 || start % 4096 != 0 {
+        return -1;
+    }
+    let mut map_permission = MapPermission::empty();
+    if port & 0x1 != 0 {
+        map_permission |= MapPermission::R;
+    }
+    if port & 0x2 != 0 {
+        map_permission |= MapPermission::W;
+    }
+    if port & 0x4 != 0 {
+        map_permission |= MapPermission::X;
+    }
+    map_permission.insert(MapPermission::U);
+    let task = current_task().unwrap();
+    task.map_new_area(start.into(), (start + len).into(), map_permission)
+        .unwrap_or(-1)
 }
 
 /// YOUR JOB: Implement munmap.
