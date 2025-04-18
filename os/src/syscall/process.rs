@@ -172,12 +172,20 @@ pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
 }
 
 /// YOUR JOB: Implement munmap.
-pub fn sys_munmap(_start: usize, _len: usize) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_munmap NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
-    -1
+pub fn sys_munmap(start: usize, len: usize) -> isize {
+    // trace!(
+    //     "kernel:pid[{}] sys_munmap NOT IMPLEMENTED",
+    //     current_task().unwrap().pid.0
+    // );
+    // -1
+
+    debug!("sys_munmap");
+    if start % PAGE_SIZE != 0 || len == 0 || len % PAGE_SIZE != 0 {
+        return -1;
+    }
+    let task = current_task().unwrap();
+    task.unmap_area(start.into(), (start + len).into())
+        .unwrap_or(-1)
 }
 
 /// change data segment size
