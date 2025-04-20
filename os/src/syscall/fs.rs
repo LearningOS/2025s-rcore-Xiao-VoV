@@ -1,5 +1,5 @@
 //! File and filesystem-related syscalls
-use crate::fs::{open_file, OpenFlags, Stat};
+use crate::fs::{open_file,get_root_inode,OpenFlags, Stat};
 use crate::mm::{translated_byte_buffer, translated_str, UserBuffer};
 use crate::task::{current_task, current_user_token};
 
@@ -85,12 +85,49 @@ pub fn sys_fstat(_fd: usize, _st: *mut Stat) -> isize {
 }
 
 /// YOUR JOB: Implement linkat.
-pub fn sys_linkat(_old_name: *const u8, _new_name: *const u8) -> isize {
+pub fn sys_linkat(old_name: *const u8, new_name: *const u8) -> isize {
+    // trace!(
+    //     "kernel:pid[{}] sys_linkat NOT IMPLEMENTED",
+    //     current_task().unwrap().pid.0
+    // );
+    // -1
     trace!(
-        "kernel:pid[{}] sys_linkat NOT IMPLEMENTED",
+        "kernel:pid[{}] sys_linkat",
         current_task().unwrap().pid.0
     );
-    -1
+
+    // 获取当前用户的token
+    let token = current_user_token();
+    
+    // 从用户空间读取文件路径
+    let old_path = translated_str(token, old_name);
+    let new_path = translated_str(token, new_name);
+    
+    // 检查是否链接同名文件
+    if old_path == new_path {
+        return -1;
+    }
+    
+    // 尝试打开原文件，确认它存在
+    if let Some(_) = open_file(old_path.as_str(), OpenFlags::RDONLY) {
+        debug!("old_name: {:?}", old_name);
+        debug!("new_name: {:?}", new_name);
+
+        // 获取文件系统的根目录
+        let fs_root = get_root_inode();
+        
+        // 尝试创建硬链接
+        match fs_root.link_file(old_path.as_str(), new_path.as_str()) {
+            Ok(links) => {
+                debug!("links = {}", links); links as isize;
+                links as isize
+            },  // 成功创建链接,返回链接数
+            Err(_) => -1 // 创建链接失败
+        }
+    } else {
+        // 原文件不存在
+        -1
+    }
 }
 
 /// YOUR JOB: Implement unlinkat.

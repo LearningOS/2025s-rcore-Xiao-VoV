@@ -125,6 +125,11 @@ pub fn open_file(name: &str, flags: OpenFlags) -> Option<Arc<OSInode>> {
     }
 }
 
+/// get root inode
+pub fn get_root_inode() -> Arc<Inode> {
+    ROOT_INODE.clone()
+}
+
 impl File for OSInode {
     fn readable(&self) -> bool {
         self.readable
