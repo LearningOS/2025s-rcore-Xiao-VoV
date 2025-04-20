@@ -200,31 +200,30 @@ pub fn sys_sbrk(size: i32) -> isize {
 
 /// YOUR JOB: Implement spawn.
 /// HINT: fork + exec =/= spawn
-pub fn sys_spawn(_path: *const u8) -> isize {
+pub fn sys_spawn(path: *const u8) -> isize {
     // trace!(
     //     "kernel:pid[{}] sys_spawn NOT IMPLEMENTED",
     //     current_task().unwrap().pid.0
     // );
     // -1
 
-    // debug!("kernel:pid[{}] sys_spawn", current_task().unwrap().pid.0);
-    // let token = current_user_token();
-    // let path_str = translated_str(token, path);
-    // if let Some(data) = get_app_data_by_name(path_str.as_str()) {
-    //     let current_task = current_task().unwrap();
-    //     let new_task = current_task.spawn(data);
-    //     if let Some(new_task) = new_task {
-    //         let new_pid = new_task.pid.0;
-    //         add_task(new_task);
-    //         new_pid as isize
-    //     } else {
-    //         -1
-    //     }
-    // } else {
-    //     -1
-    // }
-
-    -1
+    debug!("kernel:pid[{}] sys_spawn", current_task().unwrap().pid.0);
+    let token = current_user_token();
+    let path_str = translated_str(token, path);
+    if let Some(app_inode) = open_file(path_str.as_str(), OpenFlags::RDONLY) {
+        let current_task = current_task().unwrap();
+        let all_data = app_inode.read_all();
+        let new_task = current_task.spawn(all_data.as_slice());
+        if let Some(new_task) = new_task {
+            let new_pid = new_task.pid.0;
+            add_task(new_task);
+            new_pid as isize
+        } else {
+            -1
+        }
+    } else {
+        -1
+    }
 }
 
 // YOUR JOB: Set task priority.
