@@ -85,7 +85,6 @@ pub fn sys_fstat(fd: usize, st: *mut Stat) -> isize {
     // );
     // -1
     // 获取当前任务
-    debug!("kernel:pid[{}] sys_fstat", current_task().unwrap().pid.0);
     let task = current_task().unwrap();
 
     let token = task.get_user_token();
@@ -151,8 +150,6 @@ pub fn sys_linkat(old_name: *const u8, new_name: *const u8) -> isize {
     
     // 尝试打开原文件，确认它存在
     if let Some(_) = open_file(old_path.as_str(), OpenFlags::RDONLY) {
-        debug!("old_name: {:?}", old_name);
-        debug!("new_name: {:?}", new_name);
 
         // 获取文件系统的根目录
         let fs_root = get_root_inode();
@@ -160,7 +157,6 @@ pub fn sys_linkat(old_name: *const u8, new_name: *const u8) -> isize {
         // 尝试创建硬链接
         match fs_root.link_file(old_path.as_str(), new_path.as_str()) {
             Ok(links) => {
-                debug!("links = {}", links); links as isize;
                 links as isize
             },  // 成功创建链接,返回链接数
             Err(_) => -1 // 创建链接失败
@@ -172,10 +168,22 @@ pub fn sys_linkat(old_name: *const u8, new_name: *const u8) -> isize {
 }
 
 /// YOUR JOB: Implement unlinkat.
-pub fn sys_unlinkat(_name: *const u8) -> isize {
+pub fn sys_unlinkat(name: *const u8) -> isize {
     trace!(
-        "kernel:pid[{}] sys_unlinkat NOT IMPLEMENTED",
+        "kernel:pid[{}] sys_unlinkat",
         current_task().unwrap().pid.0
     );
-    -1
+    
+    let token = current_user_token();
+    
+    // 从用户空间读取文件路径
+    let path_str = translated_str(token, name);
+    
+    // 获取文件系统的根目录
+    let fs_root = get_root_inode();
+    // 尝试删除文件
+    match fs_root.unlink(path_str.as_str()) {
+        Ok(()) => 0,  // 成功删除文件
+        Err(()) => -1 // 删除文件失败，可能是文件不存在
+    }
 }

@@ -241,5 +241,115 @@ impl Inode {
         });
         (mode, nlink)
     }
+
+    /// Unlink a file under current inode by name
+    pub fn unlink(&self, name: &str) -> Result<(), ()> {
+        let mut fs = self.fs.lock();
+        
+        // 查找要删除的文件的 inode_id
+        let inode_id = self.read_disk_inode(|disk_inode| {
+            // 确保当前 inode 是目录
+            assert!(disk_inode.is_dir());
+            
+            // 查找文件在目录中的位置
+            let file_count = (disk_inode.size as usize) / DIRENT_SZ;
+            let mut dirent = DirEntry::empty();
+            for i in 0..file_count {
+                assert_eq!(
+                    disk_inode.read_at(DIRENT_SZ * i, dirent.as_bytes_mut(), &self.block_device),
+                    DIRENT_SZ,
+                );
+                if dirent.name() == name {
+                    // 找到了要删除的文件
+                    let inode_id = dirent.inode_id();
+                    let (block_id, block_offset) = fs.get_disk_inode_pos(inode_id as u32);
+                    return Some((inode_id, block_id, block_offset));
+                }
+            }
+            // 文件不存在
+            None
+        });
+        
+        // 如果文件不存在，返回错误
+        let Some((inode_id, block_id, block_offset)) = inode_id else {
+            return Err(());
+        };
+        
+        // 减少文件的链接计数
+        let need_dealloc = get_block_cache(block_id as usize, Arc::clone(&self.block_device))
+            .lock()
+            .modify(block_offset, |disk_inode: &mut DiskInode| {
+                assert!(!disk_inode.is_dir());
+                disk_inode.links -= 1;
+                // 如果链接计数为0，需要回收数据块
+                disk_inode.links == 0
+            });
+        
+        // 如果链接计数为0，回收数据块和inode
+        if need_dealloc {
+            // 获取并清除文件的数据块
+            let blocks_dealloc = get_block_cache(block_id as usize, Arc::clone(&self.block_device))
+                .lock()
+                .modify(block_offset, |disk_inode: &mut DiskInode| {
+                    let size = disk_inode.size;
+                    let data_blocks_dealloc = disk_inode.clear_size(&self.block_device);
+                    assert!(data_blocks_dealloc.len() == DiskInode::total_blocks(size) as usize);
+                    data_blocks_dealloc
+                });
+            
+            // 回收数据块
+            for data_block in blocks_dealloc.into_iter() {
+                fs.dealloc_data(data_block);
+            }
+            
+            // 回收inode
+            fs.dealloc_inode(inode_id as u32);
+        }
+        
+        // 从目录中删除文件项
+        self.modify_disk_inode(|root_inode| {
+            let file_count = (root_inode.size as usize) / DIRENT_SZ;
+            let mut dirent = DirEntry::empty();
+            
+            // 找到要删除的文件项的位置
+            let mut found_idx = 0;
+            for i in 0..file_count {
+                assert_eq!(
+                    root_inode.read_at(DIRENT_SZ * i, dirent.as_bytes_mut(), &self.block_device),
+                    DIRENT_SZ,
+                );
+                if dirent.name() == name {
+                    found_idx = i;
+                    break;
+                }
+            }
+            
+            // 如果是最后一个文件项，直接减小目录大小
+            if found_idx == file_count - 1 {
+                root_inode.size -= DIRENT_SZ as u32;
+            } else {
+                // 否则，将最后一个文件项移动到要删除的位置
+                let last_idx = file_count - 1;
+                let mut last_dirent = DirEntry::empty();
+                assert_eq!(
+                    root_inode.read_at(DIRENT_SZ * last_idx, last_dirent.as_bytes_mut(), &self.block_device),
+                    DIRENT_SZ,
+                );
+                
+                // 将最后一个文件项写入到要删除的位置
+                root_inode.write_at(
+                    DIRENT_SZ * found_idx,
+                    last_dirent.as_bytes(),
+                    &self.block_device,
+                );
+                
+                // 减小目录大小
+                root_inode.size -= DIRENT_SZ as u32;
+            }
+        });
+        
+        block_cache_sync_all();
+        Ok(())
+    }
     
 }
