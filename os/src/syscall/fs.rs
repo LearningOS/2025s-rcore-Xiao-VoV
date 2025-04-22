@@ -1,4 +1,6 @@
 //! File and filesystem-related syscalls
+use core::mem::size_of;
+
 use crate::fs::{open_file,get_root_inode,OpenFlags, Stat};
 use crate::mm::{translated_byte_buffer, translated_str, UserBuffer};
 use crate::task::{current_task, current_user_token};
@@ -76,12 +78,51 @@ pub fn sys_close(fd: usize) -> isize {
 }
 
 /// YOUR JOB: Implement fstat.
-pub fn sys_fstat(_fd: usize, _st: *mut Stat) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_fstat NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
-    -1
+pub fn sys_fstat(fd: usize, st: *mut Stat) -> isize {
+    // trace!(
+    //     "kernel:pid[{}] sys_fstat NOT IMPLEMENTED",
+    //     current_task().unwrap().pid.0
+    // );
+    // -1
+    // 获取当前任务
+    debug!("kernel:pid[{}] sys_fstat", current_task().unwrap().pid.0);
+    let task = current_task().unwrap();
+
+    let token = task.get_user_token();
+
+    let inner = task.inner_exclusive_access();
+    
+    // 检查文件描述符是否有效
+    if fd >= inner.fd_table.len() {
+        return -1;
+    }
+    
+    if let Some(file) = &inner.fd_table[fd] {
+        // 获取文件的元数据
+        if let Some(inode) = file.get_stat() {
+            debug!("file state 0: {:?}", inode);            
+            // 将 Stat 结构体写入用户空间
+            let state_bytes = unsafe {
+                core::slice::from_raw_parts(
+                    (&inode as *const Stat) as *const u8,
+                    size_of::<Stat>(),
+                )
+            };
+            let data_ptr = st as *mut u8;
+            // 简单地按字节逐个拷贝，效率较低
+            let v = translated_byte_buffer(token, data_ptr, size_of::<Stat>());
+            let flat_dest_iter = v.into_iter().flatten();
+            for (dest_byte, src_byte) in flat_dest_iter.zip(state_bytes.iter()) {
+                *dest_byte = *src_byte;
+            }
+            return 0;
+        }
+        // 如果文件不支持获取状态，返回错误
+        return -1;
+    } else {
+        // 文件描述符无效
+        -1
+    }
 }
 
 /// YOUR JOB: Implement linkat.

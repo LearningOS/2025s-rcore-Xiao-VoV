@@ -228,5 +228,18 @@ impl Inode {
         block_cache_sync_all();
         result
     }
-
+    /// 获取 inode 的状态信息
+    pub fn stat(&self) -> (i32, u32) {
+        let (mode, nlink) = self.read_disk_inode(|disk_inode| {
+            let mode = if disk_inode.is_dir() {
+                1
+            } else {
+                2
+            };
+            let nlink = disk_inode.links;
+            (mode, nlink)
+        });
+        (mode, nlink)
+    }
+    
 }
