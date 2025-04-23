@@ -1,22 +1,36 @@
 //! Mutex (spin-like and blocking(sleep))
 
+// use core::any::{Any, TypeId};
+
 use super::UPSafeCell;
 use crate::task::TaskControlBlock;
 use crate::task::{block_current_and_run_next, suspend_current_and_run_next};
 use crate::task::{current_task, wakeup_task};
 use alloc::{collections::VecDeque, sync::Arc};
 
+#[derive(PartialEq)] 
+pub enum MutexType  {
+    Spin,
+    Blocking,
+    None,
+}
+
 /// Mutex trait
-pub trait Mutex: Sync + Send {
+pub trait Mutex:Sync + Send {
     /// Lock the mutex
     fn lock(&self);
     /// Unlock the mutex
     fn unlock(&self);
+    /// Get the type of the mutex
+    fn get_type(&self) -> MutexType{
+        MutexType::None
+    }
 }
 
 /// Spinlock Mutex struct
 pub struct MutexSpin {
-    locked: UPSafeCell<bool>,
+    /// Whether the mutex is locked
+    pub locked: UPSafeCell<bool>,
 }
 
 impl MutexSpin {
@@ -50,15 +64,19 @@ impl Mutex for MutexSpin {
         let mut locked = self.locked.exclusive_access();
         *locked = false;
     }
+    fn get_type(&self) -> MutexType {
+        MutexType::Spin
+    }
 }
 
 /// Blocking Mutex struct
 pub struct MutexBlocking {
-    inner: UPSafeCell<MutexBlockingInner>,
+    /// Inner structure of the blocking mutex
+    pub inner: UPSafeCell<MutexBlockingInner>,
 }
 
 pub struct MutexBlockingInner {
-    locked: bool,
+    pub locked: bool,
     wait_queue: VecDeque<Arc<TaskControlBlock>>,
 }
 
@@ -101,5 +119,8 @@ impl Mutex for MutexBlocking {
         } else {
             mutex_inner.locked = false;
         }
+    }
+    fn get_type(&self) -> MutexType {
+        MutexType::Blocking
     }
 }

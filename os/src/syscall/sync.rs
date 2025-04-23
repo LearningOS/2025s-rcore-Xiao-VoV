@@ -1,4 +1,4 @@
-use crate::sync::{Condvar, Mutex, MutexBlocking, MutexSpin, Semaphore};
+use crate::sync::{detect_mutex_deadlock, detect_semaphore_deadlock, Condvar, DeadlockResult, Mutex, MutexBlocking, MutexSpin, Semaphore};
 use crate::task::{block_current_and_run_next, current_process, current_task};
 use crate::timer::{add_timer, get_time_ms};
 use alloc::sync::Arc;
@@ -68,6 +68,20 @@ pub fn sys_mutex_lock(mutex_id: usize) -> isize {
             .unwrap()
             .tid
     );
+    let process = current_process();
+    let process_inner = process.inner_exclusive_access();
+    debug!("mutex_id 0: {}", mutex_id);
+     // 检查死锁
+    if process_inner.enable_deadlock_detect {
+        // 在获取锁之前检测是否会导致死锁
+        drop(process_inner);
+        drop(process);
+        if detect_mutex_deadlock(mutex_id) == DeadlockResult::Deadlock  {
+            debug!("deadlock detected  X");
+            return -0xDEAD;
+        }
+    }
+    debug!("mutex_id 1 {} No deadlock!", mutex_id);
     let process = current_process();
     let process_inner = process.inner_exclusive_access();
     let mutex = Arc::clone(process_inner.mutex_list[mutex_id].as_ref().unwrap());
@@ -151,7 +165,7 @@ pub fn sys_semaphore_up(sem_id: usize) -> isize {
 }
 /// semaphore down syscall
 pub fn sys_semaphore_down(sem_id: usize) -> isize {
-    trace!(
+    debug!(
         "kernel:pid[{}] tid[{}] sys_semaphore_down",
         current_task().unwrap().process.upgrade().unwrap().getpid(),
         current_task()
@@ -162,6 +176,20 @@ pub fn sys_semaphore_down(sem_id: usize) -> isize {
             .unwrap()
             .tid
     );
+    let process = current_process();
+    let process_inner = process.inner_exclusive_access();
+
+    // 检查死锁
+    if process_inner.enable_deadlock_detect {
+        // 在获取信号量之前检测是否会导致死锁
+        drop(process_inner);
+        drop(process);
+        if detect_semaphore_deadlock(sem_id) == DeadlockResult::Deadlock {
+            debug!("deadlock detected  X");
+            return -0xDEAD;
+        }
+    }
+    debug!("sem_id 1 {} No deadlock!", sem_id);
     let process = current_process();
     let process_inner = process.inner_exclusive_access();
     let sem = Arc::clone(process_inner.semaphore_list[sem_id].as_ref().unwrap());
@@ -245,7 +273,19 @@ pub fn sys_condvar_wait(condvar_id: usize, mutex_id: usize) -> isize {
 /// enable deadlock detection syscall
 ///
 /// YOUR JOB: Implement deadlock detection, but might not all in this syscall
-pub fn sys_enable_deadlock_detect(_enabled: usize) -> isize {
-    trace!("kernel: sys_enable_deadlock_detect NOT IMPLEMENTED");
-    -1
+pub fn sys_enable_deadlock_detect(enabled: usize) -> isize {
+    trace!("kernel: sys_enable_deadlock_detect");
+    
+    // 检查参数是否合法
+    if enabled != 0 && enabled != 1 {
+        return -1;
+    }
+    
+    let process = current_process();
+    let mut process_inner = process.inner_exclusive_access();
+    
+    // 设置死锁检测标志
+    process_inner.enable_deadlock_detect = enabled == 1;
+    
+    0
 }
