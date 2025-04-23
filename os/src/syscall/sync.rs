@@ -165,7 +165,7 @@ pub fn sys_semaphore_up(sem_id: usize) -> isize {
 }
 /// semaphore down syscall
 pub fn sys_semaphore_down(sem_id: usize) -> isize {
-    debug!(
+    trace!(
         "kernel:pid[{}] tid[{}] sys_semaphore_down",
         current_task().unwrap().process.upgrade().unwrap().getpid(),
         current_task()
@@ -183,15 +183,17 @@ pub fn sys_semaphore_down(sem_id: usize) -> isize {
     if process_inner.enable_deadlock_detect {
         // 在获取信号量之前检测是否会导致死锁
         drop(process_inner);
-        drop(process);
         if detect_semaphore_deadlock(sem_id) == DeadlockResult::Deadlock {
-            debug!("deadlock detected  X");
+            debug!("semaphore deadlock detected");
             return -0xDEAD;
         }
+        let process_inner = process.inner_exclusive_access();
+        let sem = Arc::clone(process_inner.semaphore_list[sem_id].as_ref().unwrap());
+        drop(process_inner);
+        sem.down();
+        return 0;
     }
-    debug!("sem_id 1 {} No deadlock!", sem_id);
-    let process = current_process();
-    let process_inner = process.inner_exclusive_access();
+
     let sem = Arc::clone(process_inner.semaphore_list[sem_id].as_ref().unwrap());
     drop(process_inner);
     sem.down();

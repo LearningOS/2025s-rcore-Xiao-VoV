@@ -2,6 +2,7 @@
 
 use crate::sync::UPSafeCell;
 use crate::task::{block_current_and_run_next, current_task, wakeup_task, TaskControlBlock};
+use alloc::vec::Vec;
 use alloc::{collections::VecDeque, sync::Arc};
 
 /// semaphore structure
@@ -13,6 +14,7 @@ pub struct Semaphore {
 pub struct SemaphoreInner {
     pub count: isize,
     pub wait_queue: VecDeque<Arc<TaskControlBlock>>,
+    pub allocated_queue: Vec<usize>,
 }
 
 impl Semaphore {
@@ -24,6 +26,7 @@ impl Semaphore {
                 UPSafeCell::new(SemaphoreInner {
                     count: res_count as isize,
                     wait_queue: VecDeque::new(),
+                    allocated_queue: Vec::new(),
                 })
             },
         }
@@ -34,6 +37,14 @@ impl Semaphore {
         trace!("kernel: Semaphore::up");
         let mut inner = self.inner.exclusive_access();
         inner.count += 1;
+
+        if let Some(task) = current_task() {
+            let tid = task.inner_exclusive_access().res.as_ref().unwrap().tid;
+            if let Some(index) = inner.allocated_queue.iter().position(|&x| x == tid) {
+                inner.allocated_queue.remove(index);
+            }
+        }
+
         if inner.count <= 0 {
             if let Some(task) = inner.wait_queue.pop_front() {
                 wakeup_task(task);
@@ -46,6 +57,14 @@ impl Semaphore {
         trace!("kernel: Semaphore::down");
         let mut inner = self.inner.exclusive_access();
         inner.count -= 1;
+
+        if let Some(task) = current_task() {
+            let tid = task.inner_exclusive_access().res.as_ref().unwrap().tid;
+            if !inner.allocated_queue.contains(&tid) {
+                inner.allocated_queue.push(tid);
+            }
+        }
+
         if inner.count < 0 {
             inner.wait_queue.push_back(current_task().unwrap());
             drop(inner);
