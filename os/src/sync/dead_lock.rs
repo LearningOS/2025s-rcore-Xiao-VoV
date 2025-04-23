@@ -144,7 +144,6 @@ pub fn detect_semaphore_deadlock(sem_id: usize) -> DeadlockResult {
         .tid;
 
     // 构建资源分配图
-    // 构建资源分配图
     let sem_count = process_inner.semaphore_list.len();
     if sem_count == 0 {
         debug!("semaphore list is empty");

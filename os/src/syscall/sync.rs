@@ -1,4 +1,7 @@
-use crate::sync::{detect_mutex_deadlock, detect_semaphore_deadlock, Condvar, DeadlockResult, Mutex, MutexBlocking, MutexSpin, Semaphore};
+use crate::sync::{
+    detect_mutex_deadlock, detect_semaphore_deadlock, Condvar, DeadlockResult, Mutex,
+    MutexBlocking, MutexSpin, Semaphore,
+};
 use crate::task::{block_current_and_run_next, current_process, current_task};
 use crate::timer::{add_timer, get_time_ms};
 use alloc::sync::Arc;
@@ -71,19 +74,29 @@ pub fn sys_mutex_lock(mutex_id: usize) -> isize {
     let process = current_process();
     let process_inner = process.inner_exclusive_access();
     debug!("mutex_id 0: {}", mutex_id);
-     // 检查死锁
+
+    // 检查死锁
     if process_inner.enable_deadlock_detect {
         // 在获取锁之前检测是否会导致死锁
         drop(process_inner);
         drop(process);
-        if detect_mutex_deadlock(mutex_id) == DeadlockResult::Deadlock  {
+        if detect_mutex_deadlock(mutex_id) == DeadlockResult::Deadlock {
             debug!("deadlock detected  X");
             return -0xDEAD;
         }
+
+        // 重新获取进程和互斥锁
+        let process = current_process();
+        let process_inner = process.inner_exclusive_access();
+        let mutex = Arc::clone(process_inner.mutex_list[mutex_id].as_ref().unwrap());
+        drop(process_inner);
+        drop(process);
+        mutex.lock();
+        return 0;
     }
+
     debug!("mutex_id 1 {} No deadlock!", mutex_id);
-    let process = current_process();
-    let process_inner = process.inner_exclusive_access();
+    // 如果没有启用死锁检测，直接获取互斥锁
     let mutex = Arc::clone(process_inner.mutex_list[mutex_id].as_ref().unwrap());
     drop(process_inner);
     drop(process);
@@ -277,17 +290,17 @@ pub fn sys_condvar_wait(condvar_id: usize, mutex_id: usize) -> isize {
 /// YOUR JOB: Implement deadlock detection, but might not all in this syscall
 pub fn sys_enable_deadlock_detect(enabled: usize) -> isize {
     trace!("kernel: sys_enable_deadlock_detect");
-    
+
     // 检查参数是否合法
     if enabled != 0 && enabled != 1 {
         return -1;
     }
-    
+
     let process = current_process();
     let mut process_inner = process.inner_exclusive_access();
-    
+
     // 设置死锁检测标志
     process_inner.enable_deadlock_detect = enabled == 1;
-    
+
     0
 }
